@@ -1,0 +1,2774 @@
+{% extends "_base.html" %}
+{% block title %}配置信息源 - IntelliScraper{% endblock %}
+
+{% block content %}
+<style>
+/* 基础样式 */
+.picker-btn-group { gap: 4px; }
+.picker-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+.selector-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.selector-input-group input { flex: 1; }
+
+/* 选择器提示 */
+.selector-hint {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+/* 预览高亮样式 */
+.__picker_hover__ {
+    outline: 3px solid #0d6efd !important;
+    background: rgba(13,110,253,0.2) !important;
+}
+.__picker_selected__ {
+    outline: 4px solid #dc3545 !important;
+    background: rgba(220,53,69,0.2) !important;
+}
+.__picker_container__ {
+    outline: 3px solid #198754 !important;
+    background: rgba(25,135,84,0.15) !important;
+}
+.__picker_excluded__ {
+    outline: 2px dashed #ffc107 !important;
+    opacity: 0.5 !important;
+}
+
+/* 模态框样式 */
+.picker-modal .modal-body {
+    height: 70vh;
+    padding: 0;
+}
+.picker-controls {
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+    padding: 15px;
+    z-index: 10;
+}
+.preview-container {
+    height: calc(100% - 120px);
+    overflow: hidden;
+}
+
+/* 内容预览区域 */
+.content-preview {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.preview-item {
+    border-bottom: 1px solid #e9ecef;
+    padding: 8px 0;
+}
+
+.preview-item:last-child {
+    border-bottom: none;
+}
+
+/* 容器分析器样式 */
+.container-analyzer {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.element-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.element-item:hover {
+    border-color: #0d6efd;
+    background: #f8f9fa;
+}
+
+.element-item.selected-title {
+    border-color: #dc3545;
+    background: #fff5f5;
+}
+
+.element-item.selected-link {
+    border-color: #198754;
+    background: #f0fff4;
+}
+
+.element-item.selected-date {
+    border-color: #ffc107;
+    background: #fffbf0;
+}
+
+.element-item.selected-multiple {
+    border: 2px solid #6f42c1;
+    background: linear-gradient(45deg, #fff5f5 50%, #f0fff4 50%);
+}
+
+.element-preview {
+    font-family: monospace;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    padding: 5px;
+    background: #f8f9fa;
+    border-radius: 3px;
+}
+
+/* 高级选项卡片 */
+.advanced-card {
+    border-left: 3px solid #0d6efd;
+}
+
+/* 反爬虫提示 */
+.antibot-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+/* 加载策略指示器 */
+.load-strategy-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
+}
+
+/* 多重选择标签 */
+.multi-select-badges {
+    margin-top: 5px;
+}
+
+.multi-select-badges .badge {
+    margin-right: 5px;
+    margin-bottom: 2px;
+}
+</style>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <!-- 主配置表单 -->
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title mb-3">配置表单</h5>
+
+        <form id="recipeForm">
+          {% if source %}
+            <input type="hidden" name="source_id" value="{{ source.id }}">
+          {% endif %}
+
+          <div class="mb-3">
+            <label class="form-label">域名</label>
+            <input class="form-control" name="domain" value="{{ domain }}" readonly>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">起始URL（列表页）</label>
+            <input type="url" class="form-control" id="startUrl" name="start_url"
+                   value="{{ (recipe.start_url if recipe else url) or ('https://' ~ domain ~ '/') }}">
+          </div>
+
+          <!-- 列表容器选择器 -->
+          <div class="mb-3">
+            <label class="form-label">列表容器（list_selector）</label>
+            <div class="selector-input-group">
+              <input class="form-control" name="list_selector" id="listSelector"
+                     value="{{ recipe.list_selector if recipe }}">
+              <div class="btn-group picker-btn-group">
+                <button type="button" class="btn btn-primary picker-btn"
+                        onclick="openPickerModal('list', '直接')" title="直接点击选择">
+                  ☝️
+                </button>
+                <button type="button" class="btn btn-outline-info picker-btn"
+                        onclick="openPickerModal('list', '容器分析')" title="容器分析模式">
+                  📦
+                </button>
+                <button type="button" class="btn btn-outline-secondary picker-btn"
+                        onclick="checkSelector('list')" title="检查">
+                  🔍
+                </button>
+              </div>
+            </div>
+            <div class="selector-hint">推荐使用📦容器分析可一次性配置所有字段。</div>
+          </div>
+
+          <!-- 标题选择器 - 增强版 -->
+          <div class="mb-3">
+            <label class="form-label">标题选择器（title_selector）</label>
+            <div class="selector-input-group">
+              <input class="form-control" name="title_selector" id="titleSelector"
+                     value="{{ recipe.title_selector if recipe }}">
+              <div class="btn-group picker-btn-group">
+                <button type="button" class="btn btn-primary picker-btn"
+                        onclick="openPickerModal('title', '直接')" title="点击选择">
+                  ☝️
+                </button>
+                <button type="button" class="btn btn-outline-secondary picker-btn"
+                        onclick="checkSelector('title')">🔍</button>
+              </div>
+            </div>
+
+            <!-- 排除子元素选项 -->
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="titleExcludeSmall"
+                     name="title_exclude_small" {% if recipe and recipe.title_exclude_small %}checked{% endif %}>
+              <label class="form-check-label small" for="titleExcludeSmall">
+                排除 &lt;small&gt;, &lt;time&gt; 等子元素
+              </label>
+            </div>
+          </div>
+
+          <!-- 链接选择器 -->
+          <div class="mb-3">
+            <label class="form-label">链接选择器（link_selector）</label>
+            <div class="selector-input-group">
+              <input class="form-control" name="link_selector" id="linkSelector"
+                     value="{{ recipe.link_selector if recipe }}">
+              <div class="btn-group picker-btn-group">
+                <button type="button" class="btn btn-primary picker-btn"
+                        onclick="openPickerModal('link', '直接')" title="点击选择">
+                  🔗
+                </button>
+                <button type="button" class="btn btn-outline-secondary picker-btn"
+                        onclick="checkSelector('link')">🔍</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 日期选择器 -->
+          <div class="mb-3">
+            <label class="form-label">日期选择器（date_selector，留空表示没有）</label>
+            <div class="selector-input-group">
+              <input class="form-control" name="date_selector" id="dateSelector"
+                     value="{{ recipe.date_selector if recipe }}">
+              <div class="btn-group picker-btn-group">
+                <button type="button" class="btn btn-primary picker-btn"
+                        onclick="openPickerModal('date', '直接')">☝️</button>
+                <button type="button" class="btn btn-outline-secondary picker-btn"
+                        onclick="checkSelector('date')">🔍</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分页策略配置 - 简化版 -->
+          <div class="card advanced-card mb-3">
+            <div class="card-header bg-light">
+              <h6 class="mb-0">分页策略配置</h6>
+            </div>
+            <div class="card-body">
+            <!-- 分页模式选择 -->
+            <div class="mb-3">
+                <label class="form-label">分页模式</label>
+                <select class="form-select" name="pagination_mode" id="paginationMode">
+                  <option value="next" {% if not recipe or recipe.pagination_mode == 'next' %}selected{% endif %}>下一页链接（手动选择）</option>
+                  <option value="loadmore" {% if recipe and recipe.pagination_mode == 'loadmore' %}selected{% endif %}>加载更多按钮</option>
+                  <option value="number" {% if recipe and recipe.pagination_mode == 'number' %}selected{% endif %}>数字分页模式（推荐用于Drupal）</option>
+                  <option value="none" {% if recipe and recipe.pagination_mode == 'none' %}selected{% endif %}>无分页</option>
+                </select>
+              </div>
+
+              <!-- 下一页选择器 -->
+              <div id="nextPageConfig" class="pagination-config {% if recipe and recipe.pagination_mode != 'next' %}d-none{% endif %}">
+                <label class="form-label">下一页选择器</label>
+                <div class="selector-input-group">
+                  <input class="form-control" id="nextPageSelector" name="next_page_selector"
+                         value="{{ recipe.next_page_selector if recipe }}">
+                  <button type="button" class="btn btn-primary picker-btn"
+                          onclick="openPickerModal('next_page', '手动选择')">☝️</button>
+                  <button type="button" class="btn btn-outline-info picker-btn"
+                          onclick="testNextPageNavigation()" title="测试下一页导航">
+                    🧪
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary picker-btn"
+                          onclick="checkSelector('next_page')">🔍</button>
+                </div>
+                <div class="form-text">手动点击"下一页"按钮，系统会识别跳转逻辑</div>
+
+                <!-- 下一页测试结果 -->
+                <div id="nextPageTestResult" class="mt-2" style="display: none;">
+                  <div class="alert alert-info small">
+                    <div id="nextPageUrl"></div>
+                    <div id="nextPagePattern"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 数字分页配置区域 - 修复版 -->
+              <div id="numberPaginationConfig" class="pagination-config {% if not recipe or recipe.pagination_mode != 'number' %}d-none{% endif %}">
+                  <label class="form-label">URL模式</label>
+                  <div class="input-group">
+                      <input type="text" class="form-control" id="pagePattern" name="page_pattern"
+                             value="{{ recipe.page_pattern if recipe and recipe.page_pattern else '' }}"
+                             placeholder="https://example.com/events?type[]=event&page={n}">
+                      <button type="button" class="btn btn-outline-info" onclick="testNumberPagination()" title="测试数字分页">
+                          🧪
+                      </button>
+                  </div>
+                  <div class="form-text">
+                      使用 <code>{n}</code> 表示页码占位符。<br>
+                      <strong>注意：</strong>Drupal系统页码从0开始（第1页=page=0，第2页=page=1）
+                  </div>
+
+                  <div class="mt-2">
+                      <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="drupalZeroBased" name="drupal_zero_based"
+                                 {% if not recipe or recipe.drupal_zero_based %}checked{% endif %}>
+                          <label class="form-check-label" for="drupalZeroBased">
+                              Drupal零基页码（推荐）
+                          </label>
+                      </div>
+                      <div class="form-text small">
+                          勾选此项：第1页=page=0，第2页=page=1<br>
+                          不勾选：第1页=page=1，第2页=page=2
+                      </div>
+                  </div>
+              </div>
+
+              <!-- 加载更多配置 - 修复版 -->
+              <div id="loadMoreConfig" class="pagination-config {% if not recipe or recipe.pagination_mode != 'loadmore' %}d-none{% endif %}">
+                  <label class="form-label">加载更多按钮选择器</label>
+                  <div class="selector-input-group">
+                      <input class="form-control" id="loadMoreSelector" name="load_more_selector"
+                             value="{{ recipe.load_more_selector if recipe }}">
+                      <button type="button" class="btn btn-primary picker-btn"
+                              onclick="openPickerModal('load_more', '手动选择')">☝️</button>
+                      <button type="button" class="btn btn-outline-info picker-btn"
+                              onclick="testLoadMoreButton()" title="测试加载更多">
+                          🧪
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary picker-btn"
+                              onclick="checkSelector('load_more')">🔍</button>
+                  </div>
+                  <div class="form-text">手动点击"加载更多"或"Load More"按钮</div>
+
+                  <!-- 加载更多特殊配置 -->
+                  <div class="mt-2">
+                      <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="loadMoreRequiresDynamic"
+                                 name="load_more_requires_dynamic"
+                                 {% if not recipe or recipe.load_more_requires_dynamic %}checked{% endif %}>
+                          <label class="form-check-label" for="loadMoreRequiresDynamic">
+                              自动启用动态渲染（推荐）
+                          </label>
+                      </div>
+                      <div class="form-text small">加载更多通常需要JavaScript支持</div>
+                  </div>
+              </div>
+
+              <!-- 最大页数 -->
+              <div class="mt-3">
+                <label class="form-label">最大页数/点击次数</label>
+                <input type="number" class="form-control" name="max_pages" min="1"
+                       value="{{ recipe.max_pages if recipe else 3 }}">
+                <div class="form-text small">对于加载更多模式，表示最大点击次数</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 反爬虫对策 - 增强版 -->
+          <div class="card advanced-card mb-3">
+            <div class="card-header bg-light">
+              <h6 class="mb-0">反爬虫对策</h6>
+            </div>
+            <div class="card-body">
+              <!-- 加载策略 -->
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">加载策略</label>
+                  <select class="form-select" name="load_strategy" onchange="updateLoadStrategyIndicator()">
+                    <option value="static">静态HTML（快速）</option>
+                    <option value="dynamic">浏览器渲染（绕过反爬）</option>
+                    <option value="stealth">隐身模式（高级反检测）</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">等待条件</label>
+                  <select class="form-select" name="wait_until">
+                    <option value="domcontentloaded">DOM加载完成</option>
+                    <option value="load">页面完全加载</option>
+                    <option value="networkidle">网络空闲</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 额外等待 -->
+              <div class="mt-2">
+                <label class="form-label">额外等待（毫秒）</label>
+                <input type="number" class="form-control" name="wait_ms"
+                       value="{{ recipe.wait_ms if recipe else 1000 }}">
+              </div>
+
+              <!-- 代理设置 -->
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="useProxy" name="use_proxy">
+                <label class="form-check-label" for="useProxy">
+                  使用代理服务器（自动轮换）
+                </label>
+              </div>
+
+              <!-- User-Agent轮换 -->
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rotateUA" name="rotate_ua" checked>
+                <label class="form-check-label" for="rotateUA">
+                  随机User-Agent
+                </label>
+              </div>
+
+              <!-- Cookie处理 -->
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="acceptCookies" name="accept_cookies">
+                <label class="form-check-label" for="acceptCookies">
+                  自动接受Cookie提示
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 所属议题 -->
+          <div class="mb-3">
+            <label class="form-label">所属议题（可多选）</label>
+            <select name="topic_ids" class="form-select" multiple size="5">
+                {% set assigned_topic_ids = source.topics|map(attribute='id')|list if source else [] %}
+                {% for topic in all_topics %}
+                    <option value="{{ topic.id }}" {% if topic.id in assigned_topic_ids %}selected{% endif %}>
+                        {{ topic.name }}
+                    </option>
+                {% endfor %}
+            </select>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="d-flex align-items-center gap-2 mt-3">
+            <div class="input-group" style="max-width: 200px;">
+              <span class="input-group-text">测试数</span>
+              <input id="testLimit" type="number" class="form-control" value="20" min="1">
+            </div>
+
+            <button type="button" class="btn btn-success" onclick="testConfiguration()">
+              <span>测试</span>
+              <span id="testSpinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
+
+            <button type="button" class="btn btn-primary ms-auto" onclick="saveConfiguration()">
+              <span>保存</span>
+              <span id="saveSpinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
+          </div>
+        </form>
+
+        <div id="saveFeedback" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <!-- 预览窗口 - 增强版 -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">页面预览</h6>
+          <div>
+            <button class="btn btn-sm btn-outline-warning me-2" onclick="detectAntibot()">
+              检测反爬
+            </button>
+            <button class="btn btn-sm btn-outline-secondary me-2" onclick="switchLoadStrategy()">
+              切换加载模式
+            </button>
+            <button class="btn btn-sm btn-outline-secondary me-2" id="maximizePreview">
+              放大预览
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="reloadPreview">
+              刷新预览
+            </button>
+          </div>
+        </div>
+
+        <!-- 反爬虫警告 -->
+        <div id="antibotWarning" class="antibot-warning d-none">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>检测到反爬虫机制</strong>
+          <p class="mb-0 small">建议切换到"浏览器渲染"或"隐身模式"加载策略。</p>
+        </div>
+
+        <div class="position-relative">
+          <div id="loadStrategyIndicator" class="load-strategy-indicator">静态HTML</div>
+          <div class="ratio ratio-16x9">
+            <iframe id="previewFrame" src="/proxy?url={{ (recipe.start_url if recipe else url) | urlencode }}"
+                    style="width:100%;height:100%;border:0;"></iframe>
+          </div>
+        </div>
+        <div class="form-text mt-2">
+          点击上方按钮在弹窗中进行精准元素定位，不会影响当前预览。
+        </div>
+      </div>
+    </div>
+
+    <!-- 测试结果 - 增强版 -->
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">测试结果</h6>
+        <div id="testResult" class="small text-muted">点击"测试"按钮查看结果。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 智能选择器弹窗 - 改进版 -->
+<div class="modal fade picker-modal" id="pickerModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pickerModalTitle">元素选择器</h5>
+        <button type="button" class="btn-close" onclick="closePicker()"></button>
+      </div>
+      <div class="modal-body">
+        <!-- 控制面板 -->
+        <div class="picker-controls">
+          <div class="d-flex justify-content-between align-items-center">
+            <div id="pickerInstructions" class="text-muted">
+              请等待页面加载...
+            </div>
+            <div class="btn-group">
+              <button type="button" class="btn btn-sm btn-success" id="confirmPicker" disabled>
+                ✅ 确认使用
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="closePicker()">
+                ❌ 取消
+              </button>
+            </div>
+          </div>
+          <div id="currentSelectorDisplay" class="mt-2">
+            <small class="text-muted">当前选择器：</small>
+            <code id="selectorValue" class="ms-2">未选择</code>
+          </div>
+
+          <!-- 内容预览区域 -->
+          <div id="contentPreview" class="content-preview d-none">
+            <h6>提取内容预览</h6>
+            <div id="previewItems"></div>
+          </div>
+        </div>
+
+        <!-- 预览容器 -->
+        <div class="preview-container">
+          <iframe id="pickerFrame" style="width:100%;height:100%;border:0;"></iframe>
+        </div>
+
+        <!-- 状态提示 -->
+        <div id="statusBanner" class="alert alert-info position-fixed top-50 start-50 translate-middle d-none"
+             style="z-index: 10000; max-width: 400px;">
+          <div id="statusMessage"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 容器分析弹窗 - 改进版 -->
+<div class="modal fade" id="containerAnalysisModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">容器元素分析</h5>
+        <button type="button" class="btn-close" onclick="closeContainerAnalysis()"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">选择的容器包含以下子元素，请指定哪些是标题、链接和日期。<strong>支持一个元素同时作为多种类型：</strong></p>
+        <div id="containerElements"></div>
+        <div class="mt-3">
+          <label class="form-label">选择的配置：</label>
+          <div id="selectedConfigs" class="small text-muted">尚未选择...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeContainerAnalysis()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="applyContainerAnalysis()" id="applyContainerBtn" disabled>
+          应用配置
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ==================== 全局状态管理 ====================
+const appState = {
+    currentField: null,
+    currentMode: null,
+    pickerActive: false,
+    selectedElements: [],
+    step: 0,
+    containerAnalysis: {
+        container: null,
+        elements: [],
+        selected: {
+            title: new Set(),
+            link: new Set(),
+            date: new Set()
+        }
+    }
+};
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    // ===== 原有的初始化代码 =====
+    initializeEventListeners();
+    checkForAntibot();
+    updateLoadStrategyIndicator();
+    // ===== 修复：正确初始化分页模式 =====
+    initializePaginationModeFixed();
+    // ===== 新增：Drupal分页支持初始化 =====
+    ensureNumberPaginationOption();
+
+    // ===== 新增：如果URL中包含Drupal相关参数，自动建议数字分页模式 =====
+    const startUrl = document.getElementById('startUrl').value.trim();
+    if (startUrl && isDrupalLikeUrl(startUrl)) {
+        showNotification('检测到可能的Drupal网站，建议使用数字分页模式', 'info');
+    }
+});
+
+function initializePaginationModeFixed() {
+    // 先确保数字分页配置区域存在
+    ensureNumberPaginationConfig();
+
+    // 获取当前选中的分页模式
+    const mode = document.getElementById('paginationMode').value;
+    console.log('初始化分页模式:', mode);
+
+    // 根据当前模式显示对应的配置区域
+    switchPaginationMode();
+
+    // 如果是数字分页模式，确保配置正确显示
+    if (mode === 'number') {
+        const numberConfig = document.getElementById('numberPaginationConfig');
+        if (numberConfig) {
+            numberConfig.classList.remove('d-none');
+        }
+    }
+}
+
+function ensureNumberPaginationConfig() {
+    let numberConfig = document.getElementById('numberPaginationConfig');
+    if (!numberConfig) {
+        createNumberPaginationConfig();
+    }
+}
+
+
+function initializeEventListeners() {
+    // 重载预览
+    document.getElementById('reloadPreview').addEventListener('click', reloadPreview);
+
+    // 分页模式切换
+    document.getElementById('paginationMode').addEventListener('change', switchPaginationMode);
+
+    // 放大预览
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal') || createPreviewModal());
+    document.getElementById('maximizePreview').addEventListener('click', () => {
+        const iframe = document.getElementById('previewFrame');
+        const modalBody = document.querySelector('#previewModal .modal-body');
+        modalBody.appendChild(iframe);
+        previewModal.show();
+    });
+}
+
+// ==================== 选择器弹窗功能 - 改进版 ====================
+function openPickerModal(field, mode) {
+    appState.currentField = field;
+    appState.currentMode = mode;
+    appState.pickerActive = false;
+    appState.selectedElements = [];
+    appState.step = 0;
+
+    const modeMap = {
+        '直接': '直接点击选择',
+        '容器分析': '容器元素分析',
+        '手动选择': '手动选择下一页'
+    };
+
+    const fieldMap = {
+        'list': '列表容器',
+        'title': '标题选择器',
+        'link': '链接选择器',
+        'date': '日期选择器',
+        'next_page': '下一页选择器'
+    };
+
+    document.getElementById('pickerModalTitle').textContent =
+        `${modeMap[mode] || mode} - ${fieldMap[field]}`;
+
+    const startUrl = document.getElementById('startUrl').value.trim();
+    const pickerFrame = document.getElementById('pickerFrame');
+
+    // 根据加载策略选择不同的代理方式
+    const loadStrategy = document.querySelector('[name="load_strategy"]').value;
+    const proxyUrl = loadStrategy === 'dynamic' ?
+        `/proxy_dynamic?url=${encodeURIComponent(startUrl)}` :
+        `/proxy?url=${encodeURIComponent(startUrl)}`;
+
+    pickerFrame.src = proxyUrl;
+
+    showStatus('页面加载中...', 'info');
+    document.getElementById('confirmPicker').disabled = true;
+    document.getElementById('selectorValue').textContent = '未选择';
+
+    // 隐藏内容预览
+    document.getElementById('contentPreview').classList.add('d-none');
+
+    pickerFrame.onload = function() {
+        setTimeout(() => initPickerMode(), 500);
+    };
+
+    new bootstrap.Modal(document.getElementById('pickerModal')).show();
+}
+
+function initPickerMode() {
+    const doc = getIframeDoc('pickerFrame');
+    if (!doc) {
+        showStatus('页面加载失败，请检查URL或切换加载策略', 'danger');
+        return;
+    }
+
+    ensureHighlightCSS(doc);
+
+    // 根据模式初始化不同的事件处理
+    if (appState.currentMode === '容器分析') {
+        initContainerAnalysisMode(doc);
+    } else if (appState.currentField === 'next_page') {
+        initNextPageMode(doc);
+    } else {
+        initDirectMode(doc);
+    }
+
+    appState.pickerActive = true;
+}
+
+// ==================== 下一页手动选择模式 - 新增 ====================
+function initNextPageMode(doc) {
+    showStatus('点击页面中的"下一页"、">"、"»"等导航元素，系统会分析跳转逻辑', 'info');
+
+    doc.addEventListener('mousemove', handleNextPageHover);
+    doc.addEventListener('click', handleNextPageClick, true);
+}
+
+function handleNextPageHover(e) {
+    if (!appState.pickerActive) return;
+
+    clearHighlights(getIframeDoc('pickerFrame'));
+    const target = e.target;
+
+    // 检查是否可能是下一页元素
+    const isPossibleNextPage = checkIfPossibleNextPage(target);
+
+    if (isPossibleNextPage) {
+        highlightElement(target, '__picker_selected__');
+
+        // 优化文本显示 - 限制长度并清理
+        const text = target.textContent.trim();
+        const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        const href = target.getAttribute('href') || target.closest('a')?.getAttribute('href');
+
+        updateStatus(`候选下一页元素: "${displayText}" ${href ? `→ ${href}` : ''}`, 'info');
+    } else {
+        highlightElement(target);
+        // 对于非下一页元素，显示简短提示
+        const text = target.textContent.trim();
+        const shortText = text.length > 20 ? text.substring(0, 20) + '...' : text;
+        updateStatus(`当前元素: "${shortText}" (不是下一页链接)`, 'muted');
+    }
+}
+
+
+function handleNextPageClick(e) {
+    if (!appState.pickerActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const element = e.target;
+
+    // ===== 新增：检查是否是Drupal分页元素 =====
+    if (element.hasAttribute('data-options')) {
+        analyzeDrupalPagination(element);
+        return;
+    }
+
+    // ===== 原有的下一页处理逻辑 =====
+    let href = null;
+    let navigationType = 'unknown';
+
+    // 1. 标准链接
+    if (element.tagName === 'a' && element.href) {
+        href = element.href;
+        navigationType = 'standard_link';
+    }
+    // 2. 父级链接
+    else if (element.closest('a')) {
+        const linkElement = element.closest('a');
+        href = linkElement.href;
+        navigationType = 'parent_link';
+    }
+    // 3. data-href属性
+    else if (element.hasAttribute('data-href')) {
+        href = element.getAttribute('data-href');
+        navigationType = 'data_href';
+    }
+    // 4. ===== 新增：Drupal分页系统检测 =====
+    else if (element.hasAttribute('data-options')) {
+        try {
+            const options = JSON.parse(element.getAttribute('data-options'));
+            if (options.query && options.query.page) {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('page', options.query.page);
+                href = currentUrl.toString();
+                navigationType = 'drupal_pagination';
+            }
+        } catch (e) {
+            console.warn('无法解析Drupal分页数据:', e);
+        }
+    }
+    // 5. 通过onclick属性分析
+    else if (element.hasAttribute('onclick')) {
+        const onclickValue = element.getAttribute('onclick');
+        const urlMatch = onclickValue.match(/(?:location\.href|window\.location)\s*=\s*['"]([^'"]+)['"]/);
+        if (urlMatch) {
+            href = urlMatch[1];
+            navigationType = 'onclick_redirect';
+        }
+    }
+    // 6. 基于当前URL推测（适用于数字分页）
+    else if (element.textContent.trim().match(/^\d+$/)) {
+        const pageNumber = element.textContent.trim();
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('page', pageNumber);
+        href = currentUrl.toString();
+        navigationType = 'number_pagination';
+    }
+
+    if (!href) {
+        // 如果无法获取URL，但元素看起来是可点击的，标记为JavaScript导航
+        if (checkIfPossibleNextPage(element)) {
+            navigationType = 'javascript_navigation';
+            href = window.location.href; // 使用当前URL作为占位符
+            showStatus('⚠️ 检测到JavaScript导航，可能需要动态渲染模式', 'warning');
+        } else {
+            showStatus('⚠️ 选择的元素无法确定导航地址', 'warning');
+            return;
+        }
+    }
+
+    // 分析导航逻辑
+    analyzeNextPageLogic(element, href, navigationType);
+}
+
+function checkIfPossibleNextPage(element) {
+    const text = element.textContent.toLowerCase().trim();
+    const classes = Array.from(element.classList).join(' ').toLowerCase();
+    const tagName = element.tagName.toLowerCase();
+
+    // 下一页文本模式（扩展版本）
+    const nextPageTexts = [
+        'next', 'more', '下一页', '更多', '>', '»', '›', '→',
+        'continue', 'see more', 'load more', '››', '»»',
+        'siguiente', 'suivant', 'weiter', 'next page', 'page next'
+    ];
+
+    // 下一页类名模式
+    const nextPageClasses = [
+        'next', 'more', 'continue', 'forward', 'pagination-next',
+        'pager-next', 'btn-next', 'load-more'
+    ];
+
+    // 检查文本内容 - 精确匹配而不是包含匹配
+    const hasNextPageText = nextPageTexts.some(keyword => {
+        // 对于单字符，要求精确匹配
+        if (keyword.length <= 2) {
+            return text === keyword;
+        }
+        // 对于多字符，允许包含匹配
+        return text.includes(keyword);
+    });
+
+    // 检查类名
+    const hasNextPageClass = nextPageClasses.some(keyword =>
+        classes.includes(keyword)
+    );
+
+    // 扩展的元素类型检查（不只是链接）
+    const isClickableElement =
+        tagName === 'a' ||
+        tagName === 'button' ||
+        tagName === 'span' ||
+        tagName === 'div' ||
+        element.closest('a') !== null ||
+        element.hasAttribute('onclick') ||
+        element.hasAttribute('data-href') ||
+        element.hasAttribute('data-url') ||
+        element.hasAttribute('data-page') ||
+        classes.includes('clickable') ||
+        classes.includes('link') ||
+        classes.includes('btn');
+
+    // 特殊处理：Drupal分页系统
+    const isDrupalPagination =
+        element.hasAttribute('data-route-name') ||
+        element.hasAttribute('data-options') ||
+        classes.includes('drupal-masked-element');
+
+    // 排除明显不是下一页的元素
+    const isExcluded = [
+        'previous', 'prev', 'back', '上一页', '返回', 'first', 'last',
+        'home', 'search', 'login', 'register', 'contact'
+    ].some(excluded => text.includes(excluded));
+
+    return (hasNextPageText || hasNextPageClass || isDrupalPagination) &&
+           isClickableElement &&
+           !isExcluded &&
+           text.length < 100; // 排除过长的文本
+}
+
+
+function analyzeNextPageLogic(element, href, navigationType) {
+    // 获取真实的目标URL，而不是代理URL
+    const startUrl = document.getElementById('startUrl').value.trim();
+    let baseUrl = startUrl;
+
+    // 如果href是相对路径，基于startUrl构建完整URL
+    let fullNextUrl = href;
+    if (href && !href.startsWith('http')) {
+        try {
+            fullNextUrl = new URL(href, baseUrl).toString();
+        } catch (e) {
+            console.warn('URL构建失败:', e);
+            fullNextUrl = href;
+        }
+    }
+
+    console.log('URL Pattern Analysis:');
+    console.log('Base URL (start_url):', baseUrl);
+    console.log('Next URL:', fullNextUrl);
+
+    const selector = generateStableSelector(element.closest('a') || element);
+
+    // 根据导航类型分析URL模式
+    let pattern = null;
+    let detectedInfo = '';
+
+    switch (navigationType) {
+        case 'drupal_pagination':
+            pattern = analyzeUrlPattern(baseUrl, fullNextUrl);
+            detectedInfo = 'Drupal分页系统';
+            break;
+
+        case 'javascript_navigation':
+            detectedInfo = 'JavaScript导航（需要动态渲染）';
+            suggestDynamicMode();
+            break;
+
+        case 'number_pagination':
+            pattern = analyzeUrlPattern(baseUrl, fullNextUrl);
+            detectedInfo = '数字分页模式';
+            break;
+
+        default:
+            pattern = analyzeUrlPattern(baseUrl, fullNextUrl);
+            detectedInfo = '标准链接导航';
+    }
+
+    // 显示分析结果
+    showNextPageAnalysis(selector, fullNextUrl, {
+        type: navigationType,
+        pattern: pattern?.pattern || fullNextUrl,
+        detected: detectedInfo,
+        navigation_type: navigationType,
+        base_url: baseUrl
+    });
+
+    highlightElement(element, '__picker_selected__');
+    updateSelectorDisplay(selector);
+    showStatus('✅ 已分析下一页逻辑', 'success');
+    document.getElementById('confirmPicker').disabled = false;
+}
+
+
+
+function suggestDynamicMode() {
+    const loadStrategySelect = document.querySelector('[name="load_strategy"]');
+    if (loadStrategySelect && loadStrategySelect.value === 'static') {
+        loadStrategySelect.value = 'dynamic';
+        updateLoadStrategyIndicator();
+        showNotification('已自动切换到动态渲染模式以支持JavaScript导航', 'info');
+    }
+}
+
+
+function analyzeUrlPattern(currentUrl, nextUrl) {
+    try {
+        console.log('Analyzing URL pattern:');
+        console.log('Current:', currentUrl);
+        console.log('Next:', nextUrl);
+
+        const current = new URL(currentUrl);
+        const next = new URL(nextUrl);
+
+        // 检查查询参数中的页码
+        const currentParams = new URLSearchParams(current.search);
+        const nextParams = new URLSearchParams(next.search);
+
+        // 检查常见的页码参数
+        const pageParams = ['page', 'p', 'pagenum', 'pageNumber', 'offset', 'start'];
+
+        for (const param of pageParams) {
+            const currentValue = currentParams.get(param);
+            const nextValue = nextParams.get(param);
+
+            if (currentValue && nextValue && /^\d+$/.test(nextValue) && /^\d+$/.test(currentValue)) {
+                const currentNum = parseInt(currentValue);
+                const nextNum = parseInt(nextValue);
+
+                if (nextNum === currentNum + 1) {
+                    // 构建URL模式
+                    const pattern = `${next.origin}${next.pathname}?${param}={n}`;
+
+                    // 保留其他查询参数
+                    const otherParams = new URLSearchParams(next.search);
+                    otherParams.delete(param);
+
+                    const finalPattern = otherParams.toString() ?
+                        `${next.origin}${next.pathname}?${param}={n}&${otherParams.toString()}` :
+                        pattern;
+
+                    return {
+                        type: 'query_param',
+                        param: param,
+                        pattern: finalPattern,
+                        detected: `页码参数: ${param}`
+                    };
+                }
+            }
+        }
+
+        // 检查路径中的页码
+        const currentParts = current.pathname.split('/');
+        const nextParts = next.pathname.split('/');
+
+        if (currentParts.length === nextParts.length) {
+            for (let i = 0; i < currentParts.length; i++) {
+                const currentPart = currentParts[i];
+                const nextPart = nextParts[i];
+
+                if (/^\d+$/.test(currentPart) && /^\d+$/.test(nextPart)) {
+                    const currentNum = parseInt(currentPart);
+                    const nextNum = parseInt(nextPart);
+
+                    if (nextNum === currentNum + 1) {
+                        const pathPattern = nextParts.map((part, idx) =>
+                            idx === i ? '{n}' : part
+                        ).join('/');
+
+                        let fullPattern = `${next.origin}${pathPattern}`;
+                        if (next.search) {
+                            fullPattern += next.search;
+                        }
+
+                        return {
+                            type: 'path',
+                            pattern: fullPattern,
+                            detected: `路径页码位置: ${i + 1}`
+                        };
+                    }
+                }
+            }
+        }
+
+        return {
+            type: 'selector_based',
+            pattern: null,
+            detected: '基于选择器的下一页导航'
+        };
+
+    } catch (e) {
+        console.error('URL pattern analysis error:', e);
+        return {
+            type: 'unknown',
+            pattern: null,
+            detected: '无法分析URL模式'
+        };
+    }
+}
+
+function showNextPageAnalysis(selector, nextUrl, pattern) {
+    const resultDiv = document.getElementById('nextPageTestResult');
+    const urlDiv = document.getElementById('nextPageUrl');
+    const patternDiv = document.getElementById('nextPagePattern');
+
+    // 确保显示的是正确的目标网站URL
+    let displayUrl = nextUrl;
+    if (pattern.base_url && !nextUrl.startsWith('http')) {
+        displayUrl = new URL(nextUrl, pattern.base_url).toString();
+    }
+
+    urlDiv.innerHTML = `<strong>下一页URL:</strong> <a href="${displayUrl}" target="_blank">${displayUrl}</a>`;
+    patternDiv.innerHTML = `<strong>识别模式:</strong> ${pattern.detected}`;
+
+    if (pattern.pattern) {
+        patternDiv.innerHTML += `<br><code>${pattern.pattern}</code>`;
+
+        // 如果检测到数字分页模式，自动设置为number模式
+        if (pattern.type === 'query_param' || pattern.type === 'path') {
+            document.getElementById('paginationMode').value = 'number';
+            switchPaginationMode();
+
+            // 显示建议
+            patternDiv.innerHTML += `<br><small class="text-success">💡 建议使用数字分页模式，已自动切换</small>`;
+        }
+    }
+
+    // 验证URL模式是否指向目标网站
+    if (pattern.pattern && (pattern.pattern.includes('127.0.0.1') || pattern.pattern.includes('localhost'))) {
+        patternDiv.innerHTML += `<br><small class="text-warning">⚠️ 检测到本地地址，请检查目标网站配置</small>`;
+    }
+
+    resultDiv.style.display = 'block';
+}
+
+// ==================== 下一页测试功能 ====================
+async function testNextPageNavigation() {
+    const selector = document.getElementById('nextPageSelector').value.trim();
+    if (!selector) {
+        alert('请先设置下一页选择器');
+        return;
+    }
+
+    const startUrl = document.getElementById('startUrl').value.trim();
+    if (!startUrl) {
+        alert('请设置起始URL');
+        return;
+    }
+
+    try {
+        // 改为发送FormData而不是JSON
+        const formData = new FormData();
+        formData.append('url', startUrl);
+        formData.append('selector', selector);
+
+        const response = await fetch('/api/sources/test_next_page', {
+            method: 'POST',
+            body: formData  // 移除Content-Type头，让浏览器自动设置
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification(`✅ 下一页测试成功: 找到 ${result.next_url ? '1' : '0'} 个链接`, 'success');
+
+            // 显示详细信息
+            if (result.next_url) {
+                console.log('下一页URL:', result.next_url);
+                console.log('导航类型:', result.navigation_type);
+            }
+        } else {
+            showNotification(`❌ 下一页测试失败: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showNotification(`❌ 测试出错: ${error.message}`, 'danger');
+    }
+}
+
+// ==================== 加载更多测试功能 ====================
+async function testLoadMoreButton() {
+    const selector = document.getElementById('loadMoreSelector').value.trim();
+    if (!selector) {
+        alert('请先设置加载更多按钮选择器');
+        return;
+    }
+
+    const startUrl = document.getElementById('startUrl').value.trim();
+    if (!startUrl) {
+        alert('请设置起始URL');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/sources/test_load_more', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: startUrl,
+                selector: selector,
+                max_clicks: 2
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification(`✅ 加载更多测试完成: ${result.results.selector_found ? '找到按钮' : '未找到按钮'}`,
+                result.results.selector_found ? 'success' : 'warning');
+
+            if (result.results.requires_javascript) {
+                showNotification('ℹ️ 该功能需要JavaScript支持，建议使用动态渲染', 'info');
+            }
+        } else {
+            showNotification(`❌ 加载更多测试失败: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showNotification(`❌ 测试出错: ${error.message}`, 'danger');
+    }
+}
+
+// 初始化加载更多模式的元素选择
+function initLoadMoreMode(doc) {
+    showStatus('点击页面中的"加载更多"、"Load More"、"查看更多"等按钮', 'info');
+
+    doc.addEventListener('mousemove', handleLoadMoreHover);
+    doc.addEventListener('click', handleLoadMoreClick, true);
+}
+
+function handleLoadMoreHover(e) {
+    if (!appState.pickerActive || appState.currentField !== 'load_more') return;
+
+    clearHighlights(getIframeDoc('pickerFrame'));
+    const target = e.target;
+
+    // 检查是否可能是加载更多按钮
+    const isPossibleLoadMore = checkIfPossibleLoadMore(target);
+
+    if (isPossibleLoadMore) {
+        highlightElement(target, '__picker_selected__');
+        const text = target.textContent.trim();
+        const displayText = text.length > 30 ? text.substring(0, 30) + '...' : text;
+        updateStatus(`候选加载更多按钮: "${displayText}"`, 'info');
+    } else {
+        highlightElement(target);
+    }
+}
+
+function handleLoadMoreClick(e) {
+    if (!appState.pickerActive || appState.currentField !== 'load_more') return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const element = e.target;
+    const selector = generateStableSelector(element);
+
+    highlightElement(element, '__picker_selected__');
+    updateSelectorDisplay(selector);
+    showStatus('✅ 已选择加载更多按钮', 'success');
+    document.getElementById('confirmPicker').disabled = false;
+}
+
+function checkIfPossibleLoadMore(element) {
+    const text = element.textContent.toLowerCase().trim();
+    const classes = Array.from(element.classList).join(' ').toLowerCase();
+    const tagName = element.tagName.toLowerCase();
+
+    // 加载更多文本模式
+    const loadMoreTexts = [
+        'load more', 'show more', 'see more', 'view more',
+        '加载更多', '查看更多', '显示更多', '更多',
+        'more', 'load', 'expand', 'show all',
+        'ver más', 'voir plus', 'mehr laden'
+    ];
+
+    // 加载更多类名模式
+    const loadMoreClasses = [
+        'load-more', 'show-more', 'load_more', 'more-btn',
+        'expand', 'loadmore', 'btn-more', 'view-more'
+    ];
+
+    // 检查文本内容
+    const hasLoadMoreText = loadMoreTexts.some(keyword =>
+        text.includes(keyword) && text.length < 50
+    );
+
+    // 检查类名
+    const hasLoadMoreClass = loadMoreClasses.some(keyword =>
+        classes.includes(keyword)
+    );
+
+    // 检查是否是可点击元素
+    const isClickableElement =
+        tagName === 'button' ||
+        tagName === 'a' ||
+        tagName === 'div' ||
+        tagName === 'span' ||
+        element.hasAttribute('onclick') ||
+        classes.includes('btn') ||
+        classes.includes('button') ||
+        classes.includes('clickable');
+
+    return (hasLoadMoreText || hasLoadMoreClass) && isClickableElement;
+}
+// ==================== 容器分析模式 - 改进版支持多重选择 ====================
+function initContainerAnalysisMode(doc) {
+    showStatus('点击包含完整文章信息的容器元素，我将分析其所有子元素', 'info');
+
+    doc.addEventListener('mousemove', handleContainerHover);
+    doc.addEventListener('click', handleContainerClick, true);
+}
+
+function handleContainerHover(e) {
+    if (!appState.pickerActive) return;
+
+    clearHighlights(getIframeDoc('pickerFrame'));
+    const target = e.target;
+
+    // 高亮显示容器
+    highlightElement(target);
+
+    // 预览容器包含的元素数量
+    const childElements = Array.from(target.children);
+    const textElements = childElements.filter(el => el.textContent.trim().length > 0);
+
+    updateStatus(`容器包含 ${childElements.length} 个子元素，${textElements.length} 个有内容`, 'info');
+}
+
+function handleContainerClick(e) {
+    if (!appState.pickerActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const container = e.target;
+
+    // 分析容器内的所有元素
+    analyzeContainerElements(container);
+}
+
+function analyzeContainerElements(container) {
+    // 改进的元素分析逻辑
+    const elements = analyzeContainerStructure(container);
+
+    if (elements.length === 0) {
+        showStatus('容器内未找到可用的子元素', 'warning');
+        return;
+    }
+
+    // 保存分析结果
+    appState.containerAnalysis.container = container;
+    appState.containerAnalysis.elements = elements;
+
+    // 重置选择状态
+    appState.containerAnalysis.selected = {
+        title: new Set(),
+        link: new Set(),
+        date: new Set()
+    };
+
+    // 高亮容器
+    highlightElement(container, '__picker_container__');
+
+    // 显示分析结果
+    displayContainerAnalysis(elements);
+
+    showStatus(`已分析容器，找到 ${elements.length} 个元素`, 'success');
+    document.getElementById('confirmPicker').disabled = false;
+}
+
+function analyzeContainerStructure(container) {
+    const elements = [];
+
+    // 递归分析所有子元素
+    function analyzeElement(el, depth = 0) {
+        if (depth > 3) return; // 限制深度避免过度分析
+
+        // 检查当前元素是否有意义的文本内容
+        const text = el.textContent.trim();
+        const tagName = el.tagName.toLowerCase();
+
+        // 检查是否是叶子节点或包含有用信息的节点
+        const hasChildren = el.children.length > 0;
+        const hasDirectText = Array.from(el.childNodes)
+            .some(node => node.nodeType === 3 && node.textContent.trim().length > 0);
+
+        // 如果是有意义的文本元素，添加到分析结果
+        if (text.length > 0 && (!hasChildren || hasDirectText || ['a', 'time', 'span'].includes(tagName))) {
+            // 智能猜测元素类型
+            const elementType = guessElementType(el, text);
+
+            elements.push({
+                element: el,
+                text: text,
+                tagName: tagName,
+                suggestedType: elementType,
+                selector: generateStableSelector(el),
+                isLink: tagName === 'a' || el.closest('a') !== null
+            });
+        }
+
+        // 继续分析子元素
+        Array.from(el.children).forEach(child => {
+            analyzeElement(child, depth + 1);
+        });
+    }
+
+    analyzeElement(container);
+
+    // 去重和排序
+    const uniqueElements = [];
+    const seenSelectors = new Set();
+
+    elements.forEach(item => {
+        if (!seenSelectors.has(item.selector) && item.text.length > 2) {
+            seenSelectors.add(item.selector);
+            uniqueElements.push(item);
+        }
+    });
+
+    // 按元素类型和文本长度排序
+    return uniqueElements.sort((a, b) => {
+        const typeOrder = { 'title': 1, 'link': 2, 'date': 3, 'content': 4 };
+        const aOrder = typeOrder[a.suggestedType] || 5;
+        const bOrder = typeOrder[b.suggestedType] || 5;
+
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return b.text.length - a.text.length; // 文本长的优先
+    }).slice(0, 15); // 限制显示数量
+}
+
+function guessElementType(element, text) {
+    const tagName = element.tagName.toLowerCase();
+    const textLower = text.toLowerCase();
+    const classes = Array.from(element.classList).join(' ').toLowerCase();
+
+    // 优先检查明确的标签类型
+    if (tagName === 'time') {
+        return 'date';
+    }
+
+    if (tagName === 'a') {
+        // 链接元素，根据文本长度判断是否为标题链接
+        if (text.length > 20 && text.length < 300) {
+            return 'title';  // 长文本链接通常是标题
+        }
+        return 'link';
+    }
+
+    // 检查标题标签
+    if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+        return 'title';
+    }
+
+    // 检查类名中的关键词
+    if (/title|headline|subject|heading/.test(classes)) {
+        return 'title';
+    }
+
+    if (/date|time|publish|created|when/.test(classes)) {
+        return 'date';
+    }
+
+    // 检查日期模式（文本内容）
+    const datePatterns = [
+        /\d{4}[-/]\d{1,2}[-/]\d{1,2}/,
+        /\d{1,2}[-/]\d{1,2}[-/]\d{4}/,
+        /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}/i,
+        /\d{1,2}\s+(minutes?|hours?|days?|weeks?|months?)\s+ago/i
+    ];
+
+    if (datePatterns.some(pattern => pattern.test(text))) {
+        return 'date';
+    }
+
+    // 基于文本长度的启发式判断
+    if (text.length > 30 && text.length < 300) {
+        return 'title';  // 中等长度文本可能是标题
+    } else if (text.length <= 30 && text.length > 5) {
+        // 短文本，检查是否包含日期信息
+        if (/^\d{1,2}\s+(aug|sep|oct|nov|dec|jan|feb|mar|apr|may|jun|jul)/i.test(text) ||
+            /external\s+event/i.test(text)) {
+            return 'date';
+        }
+        return 'content';
+    }
+
+    return 'content';
+}
+
+function displayContainerAnalysis(elements) {
+    let html = '';
+    elements.forEach((item, index) => {
+        const { element, text, tagName, suggestedType, selector, isLink } = item;
+
+        html += `
+            <div class="element-item" data-index="${index}" data-type="${suggestedType}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <strong>&lt;${tagName}&gt;</strong>
+                        ${isLink ? '<i class="bi bi-link text-primary ms-1"></i>' : ''}
+                        ${suggestedType ? `<span class="badge bg-info ms-1">${suggestedType}</span>` : ''}
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                onclick="toggleElementType(${index}, 'title')">标题</button>
+                        <button type="button" class="btn btn-outline-success btn-sm"
+                                onclick="toggleElementType(${index}, 'link')">链接</button>
+                        <button type="button" class="btn btn-outline-warning btn-sm"
+                                onclick="toggleElementType(${index}, 'date')">日期</button>
+                    </div>
+                </div>
+                <div class="element-preview">${text.length > 80 ? text.substring(0, 80) + '...' : text}</div>
+                <code class="small text-muted">${selector}</code>
+                <div class="multi-select-badges" id="badges-${index}"></div>
+            </div>
+        `;
+    });
+
+    document.getElementById('containerElements').innerHTML = html;
+
+    // 显示容器分析弹窗
+    new bootstrap.Modal(document.getElementById('containerAnalysisModal')).show();
+}
+
+// 修改为支持多重选择的函数
+function toggleElementType(index, type) {
+    const selected = appState.containerAnalysis.selected;
+
+    if (selected[type].has(index)) {
+        // 如果已选择，取消选择
+        selected[type].delete(index);
+    } else {
+        // 如果未选择，添加选择
+        selected[type].add(index);
+    }
+
+    // 更新UI
+    updateContainerAnalysisUI();
+}
+
+function updateContainerAnalysisUI() {
+    const selected = appState.containerAnalysis.selected;
+
+    // 更新元素项的选中状态和徽章
+    document.querySelectorAll('.element-item').forEach((item, index) => {
+        // 重置类名
+        item.className = 'element-item';
+
+        // 确定选择状态
+        const isTitle = selected.title.has(index);
+        const isLink = selected.link.has(index);
+        const isDate = selected.date.has(index);
+        const selectionCount = [isTitle, isLink, isDate].filter(Boolean).length;
+
+        // 应用样式
+        if (selectionCount > 1) {
+            item.classList.add('selected-multiple');
+        } else if (isTitle) {
+            item.classList.add('selected-title');
+        } else if (isLink) {
+            item.classList.add('selected-link');
+        } else if (isDate) {
+            item.classList.add('selected-date');
+        }
+
+        // 更新徽章
+        const badgesDiv = document.getElementById(`badges-${index}`);
+        let badges = '';
+        if (isTitle) badges += '<span class="badge bg-primary">标题</span>';
+        if (isLink) badges += '<span class="badge bg-success">链接</span>';
+        if (isDate) badges += '<span class="badge bg-warning">日期</span>';
+        badgesDiv.innerHTML = badges;
+    });
+
+    // 更新选择配置显示
+    const configs = [];
+    const elements = appState.containerAnalysis.elements;
+
+    if (selected.title.size > 0) {
+        const titleIndices = Array.from(selected.title);
+        configs.push(`标题: ${titleIndices.length}个选择`);
+    }
+    if (selected.link.size > 0) {
+        const linkIndices = Array.from(selected.link);
+        configs.push(`链接: ${linkIndices.length}个选择`);
+    }
+    if (selected.date.size > 0) {
+        const dateIndices = Array.from(selected.date);
+        configs.push(`日期: ${dateIndices.length}个选择`);
+    }
+
+    document.getElementById('selectedConfigs').innerHTML =
+        configs.length > 0 ? configs.join('、') : '尚未选择...';
+
+    // 启用/禁用应用按钮
+    document.getElementById('applyContainerBtn').disabled = configs.length === 0;
+}
+
+function applyContainerAnalysis() {
+    const selected = appState.containerAnalysis.selected;
+    const elements = appState.containerAnalysis.elements;
+    const container = appState.containerAnalysis.container;
+
+    // 生成容器选择器
+    const containerSelector = generateStableSelector(container);
+    document.getElementById('listSelector').value = containerSelector;
+
+    // 应用各个字段的选择器（支持多个选择）
+    if (selected.title.size > 0) {
+        const titleSelectors = Array.from(selected.title).map(index => {
+            const titleItem = elements[index];
+            return titleItem.selector;
+        });
+        document.getElementById('titleSelector').value = titleSelectors.join(', ');
+    }
+
+    if (selected.link.size > 0) {
+        const linkSelectors = Array.from(selected.link).map(index => {
+            const linkItem = elements[index];
+            let linkSelector = linkItem.selector;
+
+            // 如果元素本身不是链接，查找最近的父级链接
+            if (linkItem.tagName !== 'a') {
+                const linkElement = linkItem.element.closest('a');
+                if (linkElement) {
+                    linkSelector = generateStableSelector(linkElement);
+                }
+            }
+            return linkSelector;
+        });
+        document.getElementById('linkSelector').value = linkSelectors.join(', ');
+    }
+
+    if (selected.date.size > 0) {
+        const dateSelectors = Array.from(selected.date).map(index => {
+            const dateItem = elements[index];
+            return dateItem.selector;
+        });
+        document.getElementById('dateSelector').value = dateSelectors.join(', ');
+    }
+
+    // 关闭弹窗
+    closeContainerAnalysis();
+    closePicker();
+
+    showNotification('已应用容器分析配置（支持多重选择）', 'success');
+}
+
+function closeContainerAnalysis() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('containerAnalysisModal'));
+    if (modal) modal.hide();
+
+    // 重置状态
+    appState.containerAnalysis = {
+        container: null,
+        elements: [],
+        selected: {
+            title: new Set(),
+            link: new Set(),
+            date: new Set()
+        }
+    };
+}
+
+// ==================== 直接选择模式 ====================
+function initDirectMode(doc) {
+    const instructions = {
+        'list': '请点击包含所有文章项的容器元素',
+        'title': '请点击一个文章标题',
+        'date': '请点击一个日期元素',
+        'next_page': '请点击"下一页"按钮或链接'
+    };
+    showStatus(instructions[appState.currentField] || '请点击要选择的元素', 'info');
+    doc.addEventListener('mousemove', handleDirectHover);
+    doc.addEventListener('click', handleDirectClick, true);
+}
+
+function handleDirectHover(e) {
+    if (!appState.pickerActive) return;
+    clearHighlights(getIframeDoc('pickerFrame'));
+    highlightElement(e.target);
+}
+
+function handleDirectClick(e) {
+    if (!appState.pickerActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const element = e.target;
+    const selector = generateStableSelector(element);
+
+    // 对于下一页链接，显示链接地址
+    if (appState.currentField === 'next_page') {
+        const href = element.getAttribute('href');
+        if (href) {
+            showStatus(`✅ 已选择下一页链接: ${href}`, 'success');
+        } else {
+            showStatus(`⚠️ 选择的元素没有链接地址`, 'warning');
+        }
+    }
+
+    highlightElement(element, '__picker_selected__');
+    updateSelectorDisplay(selector);
+    showStatus('✅ 已选择元素！', 'success');
+    document.getElementById('confirmPicker').disabled = false;
+}
+
+// ==================== 检查选择器功能 - 增强版 ====================
+function checkSelector(field) {
+    const inputMap = {
+        'list': 'listSelector',
+        'title': 'titleSelector',
+        'link': 'linkSelector',
+        'date': 'dateSelector',
+        'next_page': 'nextPageSelector'
+    };
+
+    const inputId = inputMap[field];
+    const selector = document.getElementById(inputId).value.trim();
+
+    if (!selector) {
+        alert('请先输入选择器');
+        return;
+    }
+
+    const doc = getIframeDoc('previewFrame');
+    if (!doc) {
+        alert('预览页面未加载');
+        return;
+    }
+
+    try {
+        let elements = [];
+
+        // 对于非列表选择器，在列表容器范围内查找
+        if (field !== 'list' && field !== 'next_page') {
+            const listSelector = document.getElementById('listSelector').value.trim();
+            if (listSelector) {
+                const scope = doc.querySelector(listSelector);
+                if (scope) {
+                    elements = Array.from(scope.querySelectorAll(selector));
+                } else {
+                    elements = Array.from(doc.querySelectorAll(selector));
+                }
+            } else {
+                elements = Array.from(doc.querySelectorAll(selector));
+            }
+        } else {
+            elements = Array.from(doc.querySelectorAll(selector));
+        }
+
+        if (elements.length === 0) {
+            alert('未找到匹配的元素');
+            return;
+        }
+
+        clearHighlights(doc);
+        ensureHighlightCSS(doc);
+
+        // 高亮显示所有匹配元素并提取内容
+        const previewItems = [];
+        elements.forEach((el, index) => {
+            if (index === 0) {
+                highlightElement(el, '__picker_selected__');
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                highlightElement(el, '__picker_container__');
+            }
+
+            // 提取内容预览
+            if (field === 'title') {
+                const text = el.textContent.trim();
+                previewItems.push({
+                    type: 'text',
+                    content: text,
+                    selector: selector
+                });
+            } else if (field === 'link') {
+                const link = el.tagName.toLowerCase() === 'a' ? el : el.querySelector('a');
+                if (link) {
+                    previewItems.push({
+                        type: 'link',
+                        content: link.textContent.trim(),
+                        href: link.getAttribute('href'),
+                        selector: selector
+                    });
+                }
+            } else if (field === 'date') {
+                previewItems.push({
+                    type: 'date',
+                    content: el.textContent.trim(),
+                    selector: selector
+                });
+            }
+        });
+
+        showNotification(`找到 ${elements.length} 个匹配元素`, 'success');
+
+        // 显示内容预览
+        if (previewItems.length > 0) {
+            // 限制预览数量
+            showContentPreview(previewItems.slice(0, 5));
+        }
+
+    } catch (e) {
+        alert('选择器语法错误: ' + e.message);
+    }
+}
+
+// ==================== Drupal分页处理方案集成 ====================
+
+function switchPaginationMode() {
+    const mode = document.getElementById('paginationMode').value;
+    console.log('切换分页模式到:', mode);
+
+    // 隐藏所有配置区域
+    document.querySelectorAll('.pagination-config').forEach(el => {
+        el.classList.add('d-none');
+    });
+
+    // 显示对应的配置区域
+    if (mode === 'next') {
+        const nextConfig = document.getElementById('nextPageConfig');
+        if (nextConfig) {
+            nextConfig.classList.remove('d-none');
+        }
+    } else if (mode === 'loadmore') {
+        const loadMoreConfig = document.getElementById('loadMoreConfig');
+        if (loadMoreConfig) {
+            loadMoreConfig.classList.remove('d-none');
+        }
+        // 自动建议使用动态渲染
+        if (document.getElementById('loadMoreRequiresDynamic') && document.getElementById('loadMoreRequiresDynamic').checked) {
+            const loadStrategy = document.querySelector('[name="load_strategy"]');
+            if (loadStrategy && loadStrategy.value === 'static') {
+                loadStrategy.value = 'dynamic';
+                updateLoadStrategyIndicator();
+                showNotification('已自动切换到动态渲染模式以支持加载更多功能', 'info');
+            }
+        }
+    } else if (mode === 'number') {
+        // 确保数字分页配置区域存在
+        ensureNumberPaginationConfig();
+        const numberConfig = document.getElementById('numberPaginationConfig');
+        if (numberConfig) {
+            numberConfig.classList.remove('d-none');
+        }
+    }
+}
+
+function loadPaginationModeFromRecipe() {
+    // 这个函数在模板中通过服务器端渲染来设置初始值
+    // 但我们可以添加客户端验证
+    const mode = document.getElementById('paginationMode').value;
+    if (mode === 'number') {
+        const pagePattern = document.getElementById('pagePattern');
+        const drupalZeroBased = document.getElementById('drupalZeroBased');
+
+        if (pagePattern && pagePattern.value) {
+            console.log('加载已有的数字分页配置:', {
+                pattern: pagePattern.value,
+                drupalZeroBased: drupalZeroBased ? drupalZeroBased.checked : false
+            });
+        }
+    }
+}
+
+function createNumberPaginationConfig() {
+    const paginationCard = document.querySelector('.card.advanced-card .card-body');
+    const maxPagesDiv = paginationCard.querySelector('.mt-3');
+
+    const numberConfigHtml = `
+        <div id="numberPaginationConfig" class="pagination-config d-none">
+            <label class="form-label">URL模式</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="pagePattern" name="page_pattern"
+                       placeholder="https://example.com/events?type[]=event&page={n}">
+                <button type="button" class="btn btn-outline-info" onclick="testNumberPagination()" title="测试数字分页">
+                    🧪
+                </button>
+            </div>
+            <div class="form-text">
+                使用 <code>{n}</code> 表示页码占位符。<br>
+                <strong>注意：</strong>Drupal系统页码从0开始（第1页=page=0，第2页=page=1）
+            </div>
+
+            <div class="mt-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="drupalZeroBased" name="drupal_zero_based" checked>
+                    <label class="form-check-label" for="drupalZeroBased">
+                        Drupal零基页码（推荐）
+                    </label>
+                </div>
+                <div class="form-text small">
+                    勾选此项：第1页=page=0，第2页=page=1<br>
+                    不勾选：第1页=page=1，第2页=page=2
+                </div>
+            </div>
+        </div>
+    `;
+
+    maxPagesDiv.insertAdjacentHTML('beforebegin', numberConfigHtml);
+}
+
+// ==================== 辅助函数：确保数字分页选项存在 ====================
+function ensureNumberPaginationOption() {
+    const select = document.getElementById('paginationMode');
+    if (select && !select.querySelector('option[value="number"]')) {
+        const option = document.createElement('option');
+        option.value = 'number';
+        option.textContent = '数字分页模式（推荐用于Drupal）';
+        select.appendChild(option);
+    }
+}
+
+// ==================== 辅助函数：检测是否可能是Drupal网站 ====================
+function isDrupalLikeUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        const search = urlObj.search.toLowerCase();
+        const pathname = urlObj.pathname.toLowerCase();
+
+        // 检测常见的Drupal特征
+        const drupalIndicators = [
+            search.includes('type[]='),
+            search.includes('page='),
+            pathname.includes('/node/'),
+            pathname.includes('/taxonomy/'),
+            pathname.includes('/views/'),
+            search.includes('field_'),
+            search.includes('drupal')
+        ];
+
+        return drupalIndicators.some(indicator => indicator);
+    } catch (e) {
+        return false;
+    }
+}
+
+// ==================== 核心Drupal分析函数（从第一个文件移植） ====================
+function analyzeDrupalPagination(element) {
+    const startUrl = document.getElementById('startUrl').value.trim();
+
+    try {
+        // 解析data-options属性
+        const dataOptions = element.getAttribute('data-options');
+        if (!dataOptions) {
+            showStatus('❌ 无法解析Drupal分页数据', 'danger');
+            return;
+        }
+
+        const options = JSON.parse(dataOptions.replace(/&quot;/g, '"'));
+        console.log('Drupal分页数据:', options);
+
+        // 提取查询参数
+        const query = options.query || {};
+
+        // 构建URL模式
+        const baseUrl = new URL(startUrl);
+        const urlPattern = buildDrupalUrlPattern(baseUrl, query);
+
+        if (urlPattern) {
+            // 自动切换到数字分页模式
+            document.getElementById('paginationMode').value = 'number';
+            switchPaginationMode();
+
+            // 设置页面模式配置
+            const pagePatternInput = document.getElementById('pagePattern');
+            if (pagePatternInput) {
+                pagePatternInput.value = urlPattern;
+            }
+
+            // 启用Drupal零基页码
+            const drupalZeroBased = document.getElementById('drupalZeroBased');
+            if (drupalZeroBased) {
+                drupalZeroBased.checked = true;
+            }
+
+            showDrupalAnalysis(element, urlPattern, query);
+
+            // 建议动态渲染（Drupal通常需要JavaScript）
+            suggestDynamicMode();
+
+            highlightElement(element, '__picker_selected__');
+            updateSelectorDisplay('数字分页模式 - 不需要选择器');
+            showStatus('✅ 已配置Drupal数字分页', 'success');
+            document.getElementById('confirmPicker').disabled = false;
+
+        } else {
+            showStatus('❌ 无法构建URL模式', 'danger');
+        }
+
+    } catch (e) {
+        console.error('Drupal分页解析错误:', e);
+        showStatus('❌ Drupal分页解析失败: ' + e.message, 'danger');
+    }
+}
+
+
+function showDrupalAnalysis(element, pattern, query) {
+    const resultDiv = document.getElementById('nextPageTestResult');
+    const urlDiv = document.getElementById('nextPageUrl');
+    const patternDiv = document.getElementById('nextPagePattern');
+
+    // 确保模式中的占位符没有被URL编码
+    const cleanPattern = pattern.replace(/%7Bn%7D/g, '{n}');
+
+    // 生成示例URL（第2页和第3页）
+    const exampleUrl2 = cleanPattern.replace(/{n}/g, '1'); // Drupal: 第2页 = page=1
+    const exampleUrl3 = cleanPattern.replace(/{n}/g, '2'); // Drupal: 第3页 = page=2
+
+    urlDiv.innerHTML = `
+        <strong>✅ 检测到Drupal分页系统</strong><br>
+        <small class="text-muted">示例URL:</small><br>
+        <small>第2页: <a href="${exampleUrl2}" target="_blank">${exampleUrl2}</a></small><br>
+        <small>第3页: <a href="${exampleUrl3}" target="_blank">${exampleUrl3}</a></small>
+    `;
+
+    patternDiv.innerHTML = `
+        <strong>URL模式:</strong><br>
+        <code>${cleanPattern}</code><br>
+        <strong>查询参数:</strong><br>
+        <code>${JSON.stringify(query, null, 2)}</code><br>
+        <div class="alert alert-success mt-2 small">
+            <strong>💡 配置建议:</strong><br>
+            • 已自动切换到数字分页模式<br>
+            • 已启用Drupal零基页码<br>
+            • 建议使用动态渲染模式<br>
+            • 爬虫将生成: page=0, page=1, page=2...
+        </div>
+    `;
+
+    resultDiv.style.display = 'block';
+
+    // 更新表单中的URL模式
+    const pagePatternInput = document.getElementById('pagePattern');
+    if (pagePatternInput) {
+        pagePatternInput.value = cleanPattern;
+    }
+}
+
+// ==================== 修复的 buildDrupalUrlPattern 函数 ====================
+function buildDrupalUrlPattern(baseUrl, query) {
+    try {
+        const params = new URLSearchParams();
+
+        // 处理所有查询参数
+        for (const [key, value] of Object.entries(query)) {
+            if (key === 'page') {
+                // 页码参数用占位符替换 - 注意：不要进行URL编码
+                params.set(key, '{n}');
+            } else if (Array.isArray(value)) {
+                // 处理数组参数（如 type[]）
+                value.forEach(v => params.append(key + '[]', v));
+            } else {
+                params.set(key, value);
+            }
+        }
+
+        // 如果没有page参数，添加一个
+        if (!params.has('page')) {
+            params.set('page', '{n}');
+        }
+
+        // 构建完整URL模式
+        let pattern = `${baseUrl.origin}${baseUrl.pathname}`;
+
+        // 添加查询参数 - 手动构建以避免{n}被编码
+        const queryString = params.toString();
+        if (queryString) {
+            pattern += '?' + queryString;
+            // 修复：将编码的占位符还原为原始形式
+            pattern = pattern.replace(/%7Bn%7D/g, '{n}');
+            pattern = pattern.replace(/%7B/g, '{');
+            pattern = pattern.replace(/%7D/g, '}');
+        }
+
+        console.log('生成的URL模式:', pattern);
+        return pattern;
+
+    } catch (e) {
+        console.error('URL模式构建失败:', e);
+        return null;
+    }
+}
+
+// ==================== 增强的测试函数，提供真实反馈 ====================
+async function testNumberPagination() {
+    const pattern = document.getElementById('pagePattern').value.trim();
+    const maxPages = parseInt(document.querySelector('[name="max_pages"]').value) || 3;
+    const drupalZeroBased = document.getElementById('drupalZeroBased').checked;
+
+    if (!pattern) {
+        alert('请先设置URL模式');
+        return;
+    }
+
+    if (!pattern.includes('{n}')) {
+        alert('URL模式必须包含 {n} 占位符');
+        return;
+    }
+
+    try {
+        showNotification('正在测试数字分页...', 'info');
+
+        // 生成测试URL
+        const testUrls = [];
+        const startPage = drupalZeroBased ? 0 : 1;
+
+        for (let i = 0; i < Math.min(maxPages, 3); i++) {
+            const pageNum = startPage + i;
+            const testUrl = pattern.replace(/{n}/g, pageNum.toString());
+            testUrls.push({
+                page: drupalZeroBased ? `第${i + 1}页` : `第${pageNum}页`,
+                url: testUrl,
+                pageParam: pageNum
+            });
+        }
+
+        // 实际测试URL可访问性
+        let resultHtml = '<div class="alert alert-info"><h6>数字分页测试结果:</h6>';
+        let successCount = 0;
+
+        for (const test of testUrls) {
+            try {
+                // 使用代理服务器测试URL - 改为GET方法
+                const proxyUrl = `/proxy?url=${encodeURIComponent(test.url)}`;
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',  // 修改：从HEAD改为GET
+                    timeout: 5000
+                });
+
+                const status = response.ok ? '✅' : '❌';
+                const statusText = response.ok ? 'OK' : `Error ${response.status}`;
+
+                if (response.ok) successCount++;
+
+                resultHtml += `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                        <div>
+                            <strong>${test.page}:</strong>
+                            <a href="${test.url}" target="_blank" class="small">page=${test.pageParam}</a>
+                        </div>
+                        <span class="badge bg-${response.ok ? 'success' : 'danger'}">${status} ${statusText}</span>
+                    </div>
+                `;
+            } catch (error) {
+                resultHtml += `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                        <div>
+                            <strong>${test.page}:</strong>
+                            <a href="${test.url}" target="_blank" class="small">page=${test.pageParam}</a>
+                        </div>
+                        <span class="badge bg-warning">❌ 连接失败</span>
+                    </div>
+                `;
+            }
+        }
+
+        resultHtml += `
+            <div class="mt-2">
+                <strong>测试总结：</strong> ${successCount}/${testUrls.length} 个URL可访问
+            </div>
+        `;
+
+        if (successCount === 0) {
+            resultHtml += `
+                <div class="alert alert-warning mt-2 small">
+                    <strong>建议检查：</strong><br>
+                    • URL模式是否正确<br>
+                    • 是否需要动态渲染模式<br>
+                    • 网站是否有访问限制
+                </div>
+            `;
+        } else if (successCount === testUrls.length) {
+            resultHtml += `
+                <div class="alert alert-success mt-2 small">
+                    <strong>测试通过！</strong> 所有URL都可以正常访问
+                </div>
+            `;
+        }
+
+        resultHtml += '</div>';
+
+        document.getElementById('nextPageTestResult').innerHTML = resultHtml;
+        document.getElementById('nextPageTestResult').style.display = 'block';
+
+        const message = successCount > 0 ?
+            `✅ 数字分页测试完成 (${successCount}/${testUrls.length} 成功)` :
+            '❌ 数字分页测试失败';
+
+        showNotification(message, successCount > 0 ? 'success' : 'warning');
+
+    } catch (error) {
+        showNotification(`❌ 测试失败: ${error.message}`, 'danger');
+    }
+}
+
+
+// ==================== 反爬虫检测功能 ====================
+function checkForAntibot() {
+    const iframe = document.getElementById('previewFrame');
+    iframe.addEventListener('load', function() {
+        try {
+            const doc = iframe.contentDocument;
+            if (!doc) return;
+
+            const text = doc.body.textContent.toLowerCase();
+
+            // 检测常见的反爬虫标志
+            const antibotSignals = [
+                'cloudflare',
+                'captcha',
+                'robot',
+                'bot detection',
+                'access denied',
+                'forbidden',
+                'rate limit',
+                'please verify',
+                'checking your browser',
+                '验证码',
+                '机器人检测',
+                '访问被拒绝'
+            ];
+
+            const hasAntibot = antibotSignals.some(signal => text.includes(signal));
+
+            if (hasAntibot) {
+                document.getElementById('antibotWarning').classList.remove('d-none');
+                // 自动建议切换策略
+                suggestAntibotStrategy();
+            } else {
+                document.getElementById('antibotWarning').classList.add('d-none');
+            }
+        } catch(e) {
+            // 跨域限制，可能需要特殊处理
+        }
+    });
+}
+
+function detectAntibot() {
+    const doc = getIframeDoc('previewFrame');
+    if (!doc) {
+        alert('页面未加载');
+        return;
+    }
+
+    const analysis = analyzeAntibotMeasures(doc);
+    displayAntibotAnalysis(analysis);
+}
+
+function analyzeAntibotMeasures(doc) {
+    const analysis = {
+        hasCloudflare: false,
+        hasCaptcha: false,
+        hasRateLimit: false,
+        hasJSChallenge: false,
+        suggestions: []
+    };
+
+    // 检测Cloudflare
+    if (doc.querySelector('.cf-browser-verification') ||
+        doc.title.includes('Just a moment') ||
+        doc.body.textContent.includes('Cloudflare')) {
+        analysis.hasCloudflare = true;
+        analysis.suggestions.push('使用隐身模式加载策略');
+    }
+
+    // 检测验证码
+    if (doc.querySelector('[class*="captcha"], [id*="captcha"], iframe[src*="recaptcha"]')) {
+        analysis.hasCaptcha = true;
+        analysis.suggestions.push('需要人工处理验证码');
+    }
+
+    // 检测速率限制
+    const bodyText = doc.body.textContent.toLowerCase();
+    if (bodyText.includes('rate limit') || bodyText.includes('too many requests')) {
+        analysis.hasRateLimit = true;
+        analysis.suggestions.push('增加请求延迟，使用代理池');
+    }
+
+    // 检测JavaScript挑战
+    if (bodyText.includes('javascript') && bodyText.includes('enable')) {
+        analysis.hasJSChallenge = true;
+        analysis.suggestions.push('使用浏览器渲染模式');
+    }
+
+    return analysis;
+}
+
+function suggestAntibotStrategy() {
+    // 自动调整配置以绕过反爬
+    document.querySelector('[name="load_strategy"]').value = 'stealth';
+    document.querySelector('[name="wait_ms"]').value = '3000';
+    document.getElementById('useProxy').checked = true;
+    document.getElementById('rotateUA').checked = true;
+    updateLoadStrategyIndicator();
+}
+
+function switchLoadStrategy() {
+    const currentStrategy = document.querySelector('[name="load_strategy"]').value;
+    const strategies = ['static', 'dynamic', 'stealth'];
+    const currentIndex = strategies.indexOf(currentStrategy);
+    const nextIndex = (currentIndex + 1) % strategies.length;
+
+    document.querySelector('[name="load_strategy"]').value = strategies[nextIndex];
+    updateLoadStrategyIndicator();
+
+    // 重新加载预览
+    reloadPreview();
+
+    // 显示提示
+    const strategyNames = {
+        'static': '静态HTML',
+        'dynamic': '浏览器渲染',
+        'stealth': '隐身模式'
+    };
+
+    showNotification(`已切换到: ${strategyNames[strategies[nextIndex]]}`, 'info');
+}
+
+function updateLoadStrategyIndicator() {
+    const strategy = document.querySelector('[name="load_strategy"]').value;
+    const indicator = document.getElementById('loadStrategyIndicator');
+
+    const strategyNames = {
+        'static': '静态HTML',
+        'dynamic': '浏览器渲染',
+        'stealth': '隐身模式'
+    };
+
+    const strategyColors = {
+        'static': '#28a745',
+        'dynamic': '#ffc107',
+        'stealth': '#dc3545'
+    };
+
+    indicator.textContent = strategyNames[strategy] || strategy;
+    indicator.style.backgroundColor = strategyColors[strategy] || '#6c757d';
+}
+
+// ==================== 工具函数 ====================
+function getIframeDoc(frameId = 'previewFrame') {
+    const iframe = document.getElementById(frameId);
+    try {
+        return iframe?.contentDocument || iframe?.contentWindow?.document;
+    } catch(e) {
+        console.warn('无法访问iframe内容，可能是跨域限制');
+        return null;
+    }
+}
+
+function generateStableSelector(element) {
+    if (!element || element === element.ownerDocument.body) return '';
+
+    // 优先使用ID
+    if (element.id && !/\d{4,}/.test(element.id)) {
+        return '#' + CSS.escape(element.id);
+    }
+
+    const tagName = element.tagName.toLowerCase();
+
+    // 查找最有意义的类名
+    const meaningfulClasses = Array.from(element.classList || [])
+        .filter(cls => {
+            // 过滤掉无意义的类名
+            return cls &&
+                   !cls.startsWith('__') &&
+                   !cls.startsWith('picker-') &&
+                   cls.length > 2 &&
+                   !/\d{3,}/.test(cls) &&
+                   !['selectionShareable'].includes(cls);  // 过滤掉这种通用类
+        })
+        .slice(0, 2);  // 最多取2个类
+
+    let selector = tagName;
+    if (meaningfulClasses.length > 0) {
+        selector += '.' + meaningfulClasses.join('.');
+    }
+
+    // 验证唯一性，如果不唯一，尝试简化的父级选择器
+    try {
+        const matches = element.ownerDocument.querySelectorAll(selector);
+        if (matches.length === 1) {
+            return selector;
+        }
+
+        // 如果不唯一，尝试添加直接父元素的一个关键类
+        if (element.parentElement && matches.length > 1) {
+            const parent = element.parentElement;
+            const parentClasses = Array.from(parent.classList || [])
+                .filter(cls => {
+                    return cls &&
+                           cls.length > 3 &&
+                           !/\d{3,}/.test(cls) &&
+                           !['selectionShareable'].includes(cls) &&
+                           /wrapper|container|content|item|card/.test(cls);
+                });
+
+            if (parentClasses.length > 0) {
+                const parentSelector = parent.tagName.toLowerCase() + '.' + parentClasses[0];
+                const combinedSelector = `${parentSelector} > ${selector}`;
+
+                // 验证组合选择器
+                const combinedMatches = element.ownerDocument.querySelectorAll(combinedSelector);
+                if (combinedMatches.length === 1) {
+                    return combinedSelector;
+                }
+            }
+        }
+
+        // 如果还是不唯一，使用nth-child
+        if (element.parentElement) {
+            const siblings = Array.from(element.parentElement.children)
+                .filter(el => el.tagName === element.tagName);
+            if (siblings.length > 1) {
+                const index = siblings.indexOf(element) + 1;
+                return `${selector}:nth-of-type(${index})`;
+            }
+        }
+    } catch (e) {
+        console.warn('选择器生成错误:', e);
+    }
+
+    return selector;
+}
+
+function ensureHighlightCSS(doc) {
+    if (!doc || doc.getElementById('picker-highlight-style')) return;
+
+    const style = doc.createElement('style');
+    style.id = 'picker-highlight-style';
+    style.textContent = `
+        .__picker_hover__ {
+            outline: 3px solid #0d6efd !important;
+            background: rgba(13,110,253,0.2) !important;
+            position: relative !important;
+            z-index: 9999 !important;
+        }
+        .__picker_selected__ {
+            outline: 4px solid #dc3545 !important;
+            background: rgba(220,53,69,0.2) !important;
+            position: relative !important;
+            z-index: 9999 !important;
+        }
+        .__picker_container__ {
+            outline: 3px solid #198754 !important;
+            background: rgba(25,135,84,0.15) !important;
+            position: relative !important;
+            z-index: 9998 !important;
+        }
+        .__picker_excluded__ {
+            outline: 2px dashed #ffc107 !important;
+            opacity: 0.5 !important;
+        }
+    `;
+    doc.head.appendChild(style);
+}
+
+function clearHighlights(doc) {
+    if (!doc) return;
+    ['__picker_hover__', '__picker_selected__', '__picker_container__', '__picker_excluded__']
+        .forEach(cls => {
+            doc.querySelectorAll('.' + cls).forEach(el => el.classList.remove(cls));
+        });
+}
+
+function highlightElement(element, className = '__picker_hover__') {
+    if (element) element.classList.add(className);
+}
+
+function showStatus(message, type = 'info') {
+    const banner = document.getElementById('statusBanner');
+    const messageEl = document.getElementById('statusMessage');
+
+    if (!banner || !messageEl) return;
+
+    banner.className = `alert alert-${type} position-fixed top-50 start-50 translate-middle`;
+    messageEl.innerHTML = message;
+    banner.classList.remove('d-none');
+
+    if (type === 'success') {
+        setTimeout(() => banner.classList.add('d-none'), 3000);
+    }
+}
+
+function updateStatus(message, type = 'info') {
+    const instructions = document.getElementById('pickerInstructions');
+    if (instructions) {
+        instructions.textContent = message;
+        instructions.className = `text-${type === 'success' ? 'success' : 'muted'}`;
+    }
+}
+
+function updateSelectorDisplay(selector) {
+    document.getElementById('selectorValue').textContent = selector || '未选择';
+}
+
+function showNotification(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+    alertDiv.style.zIndex = '10000';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+// ==================== 内容预览功能 ====================
+function showContentPreview(items) {
+    const previewDiv = document.getElementById('contentPreview');
+    const previewItems = document.getElementById('previewItems');
+
+    if (!items || items.length === 0) {
+        previewDiv.classList.add('d-none');
+        return;
+    }
+
+    let html = '';
+    items.forEach((item, index) => {
+        let content = '';
+        if (item.type === 'text') {
+            content = `<div class="small"><strong>文本:</strong> ${item.content}</div>`;
+        } else if (item.type === 'link') {
+            content = `<div class="small"><strong>链接:</strong> <a href="${item.href}" target="_blank">${item.content}</a></div>`;
+        } else if (item.type === 'date') {
+            content = `<div class="small"><strong>日期:</strong> ${item.content}</div>`;
+        }
+
+        html += `
+            <div class="preview-item">
+                ${content}
+                <code class="small text-muted d-block mt-1">${item.selector}</code>
+            </div>
+        `;
+    });
+
+    previewItems.innerHTML = html;
+    previewDiv.classList.remove('d-none');
+}
+
+// ==================== 测试和保存功能 ====================
+async function testConfiguration() {
+    const form = document.getElementById('recipeForm');
+    const formData = new FormData(form);
+    formData.append('limit', document.getElementById('testLimit').value);
+
+    const spinner = document.getElementById('testSpinner');
+    spinner.classList.remove('d-none');
+
+    try {
+        const response = await fetch('/api/sources/test_preview_enhanced', {
+            method: 'POST',
+            body: formData
+        });
+
+        const html = await response.text();
+        document.getElementById('testResult').innerHTML = html;
+    } catch (error) {
+        document.getElementById('testResult').innerHTML =
+            `<div class="alert alert-danger">测试失败: ${error.message}</div>`;
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+async function saveConfiguration() {
+    const form = document.getElementById('recipeForm');
+    const formData = new FormData(form);
+
+    // 检查是否已经有pagination_mode，如果没有才添加
+    if (!formData.has('pagination_mode')) {
+        const paginationMode = document.getElementById('paginationMode').value;
+        formData.append('pagination_mode', paginationMode);
+        console.log('添加分页模式到表单数据:', paginationMode);
+    } else {
+        console.log('表单数据中已包含pagination_mode:', formData.get('pagination_mode'));
+    }
+
+    // 处理数字分页相关字段
+    const paginationMode = document.getElementById('paginationMode').value;
+    if (paginationMode === 'number') {
+        const pagePattern = document.getElementById('pagePattern').value.trim();
+        const drupalZeroBased = document.getElementById('drupalZeroBased').checked;
+
+        if (pagePattern) {
+            formData.set('page_pattern', pagePattern);
+        }
+        formData.set('drupal_zero_based', drupalZeroBased ? 'true' : 'false');
+
+        console.log('数字分页配置:', {
+            page_pattern: pagePattern,
+            drupal_zero_based: drupalZeroBased
+        });
+    }
+
+    // 处理标题排除选项
+    if (document.getElementById('titleExcludeSmall') && document.getElementById('titleExcludeSmall').checked) {
+        formData.set('title_exclude_small', 'true');
+    }
+
+    const spinner = document.getElementById('saveSpinner');
+    spinner.classList.remove('d-none');
+
+    try {
+        const response = await fetch('/api/sources/manual_enhanced', {
+            method: 'POST',
+            body: formData
+        });
+
+        const html = await response.text();
+        document.getElementById('saveFeedback').innerHTML = html;
+
+        // 如果保存成功，显示成功消息
+        if (response.ok && html.includes('alert-success')) {
+            showNotification('配置保存成功！', 'success');
+        }
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        document.getElementById('saveFeedback').innerHTML =
+            `<div class="alert alert-danger">保存失败: ${error.message}</div>`;
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+function reloadPreview() {
+    const iframe = document.getElementById('previewFrame');
+    const url = document.getElementById('startUrl').value.trim();
+    const strategy = document.querySelector('[name="load_strategy"]').value;
+
+    if (url) {
+        const proxyUrl = strategy === 'dynamic' ?
+            `/proxy_dynamic?url=${encodeURIComponent(url)}` :
+            `/proxy?url=${encodeURIComponent(url)}`;
+        iframe.src = proxyUrl;
+    }
+}
+
+function closePicker() {
+    const doc = getIframeDoc('pickerFrame');
+    if (doc) {
+        clearHighlights(doc);
+    }
+
+    appState.pickerActive = false;
+    appState.selectedElements = [];
+    appState.step = 0;
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('pickerModal'));
+    if (modal) modal.hide();
+}
+
+// 创建预览模态框（如果不存在）
+function createPreviewModal() {
+    const modalHtml = `
+        <div class="modal fade" id="previewModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">页面预览</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-0" style="height: 85vh;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div.firstElementChild);
+
+    return document.getElementById('previewModal');
+}
+
+// 初始化分页模式
+function initializePaginationMode() {
+    const mode = document.getElementById('paginationMode').value;
+    switchPaginationMode();
+}
+
+// 确认选择器并应用到表单
+document.getElementById('confirmPicker').addEventListener('click', function() {
+    const selector = document.getElementById('selectorValue').textContent;
+    if (selector && selector !== '未选择') {
+        const inputMap = {
+            'list': 'listSelector',
+            'title': 'titleSelector',
+            'link': 'linkSelector',
+            'date': 'dateSelector',
+            'next_page': 'nextPageSelector'
+        };
+
+        const inputId = inputMap[appState.currentField];
+        if (inputId) {
+            document.getElementById(inputId).value = selector;
+        }
+
+        closePicker();
+    }
+});
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (appState.pickerActive) closePicker();
+    }
+});
+// ==================== 更智能的URL模式自动检测 ====================
+function autoDetectUrlPattern() {
+    const startUrl = document.getElementById('startUrl').value.trim();
+    if (!startUrl) {
+        alert('请先设置起始URL');
+        return;
+    }
+
+    try {
+        const url = new URL(startUrl);
+        const params = new URLSearchParams(url.search);
+
+        // 检查是否已经有page参数
+        if (params.has('page')) {
+            showNotification('URL中已包含page参数，请手动设置模式', 'warning');
+            return;
+        }
+
+        // 自动生成URL模式
+        params.set('page', '{n}');
+        let pattern = `${url.origin}${url.pathname}?${params.toString()}`;
+
+        // 修复编码问题
+        pattern = pattern.replace(/%7Bn%7D/g, '{n}');
+
+        document.getElementById('pagePattern').value = pattern;
+        showNotification('已自动生成URL模式', 'success');
+
+    } catch (error) {
+        showNotification(`URL解析失败: ${error.message}`, 'danger');
+    }
+}
+</script>
+{% endblock %}

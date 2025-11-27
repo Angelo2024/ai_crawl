@@ -1,0 +1,32 @@
+{% extends "_base.html" %}
+
+{% block title %}客户管理 - IntelliScraper{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">添加新客户</h5>
+
+        <form hx-post="/api/clients/"
+              hx-target="#client-list-body"
+              hx-swap="afterbegin"
+              hx-on::after-request="if(event.detail.successful) this.reset()">
+            <div class="input-group">
+                <input type="text" name="name" class="form-control" placeholder="新客户名称" required>
+                <input type="text" name="description" class="form-control" placeholder="可选描述">
+                <button class="btn btn-primary" type="submit">添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="client-list-container"
+     hx-get="/api/clients/"
+     hx-trigger="load, loadClients from:body"
+     class="card">
+    <div class="card-body text-center">
+        <p class="text-muted">正在加载客户列表...</p>
+    </div>
+</div>
+
+{% endblock %}

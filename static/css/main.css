@@ -1,0 +1,30 @@
+/* /static/main.css */
+
+:root{
+  --bg-hero: linear-gradient(180deg, #f0f4ff 0%, #f8f9fb 100%);
+}
+
+.hero{
+  background: var(--bg-hero);
+  border: 1px solid rgba(0,0,0,.06);
+}
+
+.feature-card{
+  transition: transform .15s ease, box-shadow .15s ease;
+  border-radius: 1rem;
+  border: 1px solid rgba(0,0,0,.06);
+}
+.feature-card:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0,0,0,.06);
+}
+
+.kbd{
+  padding: .15rem .35rem;
+  border: 1px solid rgba(0,0,0,.2);
+  border-bottom-width: 2px;
+  border-radius: .375rem;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: .85em;
+}

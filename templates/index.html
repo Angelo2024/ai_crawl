@@ -1,0 +1,68 @@
+{% extends "_base.html" %}
+{% block title %}首页 - IntelliScraper{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/css/main.css">
+{% endblock %}
+{% block content %}
+
+<section class="hero mb-4 p-4 p-md-5 rounded-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-7">
+      <h1 class="display-6 fw-bold mb-2">欢迎使用 IntelliScraper</h1>
+      <p class="lead text-secondary mb-4">
+        一个基于 <span class="fw-semibold">FastAPI · HTMX · Playwright</span> 的智能新闻抓取与管理平台。
+        支持 AI 自动生成配方、手动可视化配置、以及客户端订阅分发。
+      </p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-primary btn-lg px-4" href="/sources">管理信息源</a>
+        <a class="btn btn-outline-secondary btn-lg px-4" href="/clients">管理客户端</a>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="stats card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="text-uppercase text-muted mb-3">快速开始</h6>
+          <ol class="mb-0 small">
+            <li>进入 <strong>信息源</strong>，输入列表页 URL，点<em>配置</em>。</li>
+            <li>在列表里点击 <em>测试</em>，确认抓取效果；需要时在编辑页微调选择器。</li>
+            <li>进入 <strong>客户端</strong>，为指定客户端分配信息源完成订阅。</li>
+          </ol>
+          <hr>
+          <div class="d-flex align-items-center gap-2 small">
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">提示</span>
+            <span>如仅需静态抓取，可设置环境变量 <code class="kbd">DISABLE_PLAYWRIGHT=1</code></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="row g-3">
+  <div class="col-md-6">
+    <div class="feature-card card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="card-title mb-0">AI 自动生成配方</h5>
+          <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">DeepSeek / OpenAI</span>
+        </div>
+        <p class="text-secondary mb-3">输入一个新闻列表页 URL，系统将自动分析 HTML 结构并给出稳定的 CSS 选择器；必要时可在编辑页微调。</p>
+        <a class="btn btn-sm btn-primary" href="/sources">去试试</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="feature-card card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="card-title mb-0">可视化手动配置</h5>
+          <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Selector Picker</span>
+        </div>
+        <p class="text-secondary mb-3">在右侧预览中点击页面元素即可自动生成选择器，并实时测试抓取效果，确保结果准确可控。</p>
+        <a class="btn btn-sm btn-outline-secondary" href="/sources">前往信息源</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

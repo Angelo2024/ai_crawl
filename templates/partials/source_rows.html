@@ -1,0 +1,60 @@
+<tr id="source-row-{{ source.id }}">
+  <td>{{ source.id }}</td>
+  <td>
+    <a href="{{ source.start_url or ('https://' ~ source.domain) }}" target="_blank" class="fw-semibold text-decoration-none">{{ source.domain }}</a>
+  </td>
+  <td>
+    {% if source.topics %}
+      {% for topic in source.topics %}
+        <span class="badge bg-secondary fw-normal me-1">{{ topic.name }}</span>
+      {% endfor %}
+    {% else %}
+      <span class="text-muted small">--</span>
+    {% endif %}
+  </td>
+  <td>
+    <div class="btn-group btn-group-sm">
+      <a href="/sources/{{ source.id }}/edit" class="btn btn-outline-secondary">
+        <i class="bi bi-pencil-square"></i> 编辑
+      </a>
+      <button class="btn btn-outline-primary"
+              hx-get="/api/sources/{{ source.id }}/topics-form"
+              hx-target="#editTopicsModalBody"
+              hx-swap="innerHTML"
+              data-bs-toggle="modal"
+              data-bs-target="#editTopicsModal">
+        <i class="bi bi-tags"></i> 议题
+      </button>
+      <button class="btn btn-outline-info"
+              hx-post="/api/sources/{{ source.id }}/test"
+              hx-target="#testModalBody"
+              hx-swap="innerHTML"
+              hx-indicator="#test-spinner-{{ source.id }}">
+        <span id="test-spinner-{{ source.id }}" class="spinner-border spinner-border-sm d-none"></span>
+        <i class="bi bi-play-circle"></i> 测试
+      </button>
+      <button class="btn btn-outline-success"
+              hx-get="/api/sources/{{ source.id }}/config"
+              hx-target="#config-{{ source.id }}"
+              hx-swap="innerHTML"
+              onclick="toggleConfigRow({{ source.id }})">
+        <i class="bi bi-file-code"></i> 配置
+      </button>
+      <button class="btn btn-outline-danger"
+              hx-delete="/api/sources/{{ source.id }}"
+              hx-confirm="确定要删除 {{ source.domain }} 吗？"
+              hx-target="closest tr"
+              hx-swap="outerHTML">
+        <i class="bi bi-trash"></i> 删除
+      </button>
+    </div>
+  </td>
+</tr>
+
+<tr id="config-row-{{ source.id }}" style="display: none;">
+  <td colspan="4">
+    <div id="config-{{ source.id }}" class="p-2 bg-light rounded small">
+      <!-- 配置信息将通过HTMX加载到这里 -->
+    </div>
+  </td>
+</tr>

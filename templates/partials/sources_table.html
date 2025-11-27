@@ -1,0 +1,64 @@
+<div class="table-responsive">
+  <table class="table align-middle table-hover" id="sourcesTable">
+    <thead class="table-light">
+      <tr>
+        <th style="width:80px;" class="sortable-header" data-sort="id">
+          <div class="d-flex align-items-center justify-content-between">
+            <span>ID</span>
+            <i class="bi bi-chevron-expand sort-icon" data-field="id"></i>
+          </div>
+        </th>
+        <th class="sortable-header" data-sort="domain">
+          <div class="d-flex align-items-center justify-content-between">
+            <span>域名</span>
+            <i class="bi bi-chevron-expand sort-icon" data-field="domain"></i>
+          </div>
+        </th>
+        <th>议题</th>
+        <th style="width:360px;" class="sortable-header" data-sort="updated_at">
+          <div class="d-flex align-items-center justify-content-between">
+            <span>操作</span>
+            <i class="bi bi-chevron-expand sort-icon" data-field="updated_at"></i>
+          </div>
+        </th>
+      </tr>
+    </thead>
+    <tbody id="sourcesTbody">
+      {% if sources %}
+        {% for source in sources %}
+          {% include "partials/source_rows.html" %}
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-4">
+            没有找到匹配的数据。
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+    padding: 0.75rem;
+}
+.sortable-header:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+.sort-icon {
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    font-size: 0.8em;
+}
+.sortable-header:hover .sort-icon {
+    opacity: 0.7;
+}
+.sort-icon.active {
+    opacity: 1;
+    color: #0d6efd;
+}
+</style>

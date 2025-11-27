@@ -1,0 +1,50 @@
+<tr id="client-row-{{ client.id }}">
+    <td>{{ client.id }}</td>
+    <td>
+        <a href="/clients/{{ client.id }}" class="fw-semibold text-decoration-none">{{ client.name }}</a>
+        {% if client.description %}
+            <div class="small text-muted">{{ client.description }}</div>
+        {% endif %}
+    </td>
+    <td>
+        <div class="btn-group" role="group">
+            <button class="btn btn-sm btn-success"
+                    hx-post="/api/clients/{{ client.id }}/collect"
+                    hx-swap="none"
+                    hx-indicator="#collect-spinner-{{ client.id }}"
+                    onclick="showCollectFeedback('{{ client.name }}')">
+                开始收集
+                <span id="collect-spinner-{{ client.id }}" class="htmx-indicator spinner-border spinner-border-sm ms-1"></span>
+            </button>
+            <a href="/clients/{{ client.id }}" class="btn btn-sm btn-outline-primary">详情</a>
+            <button class="btn btn-sm btn-outline-danger"
+                    hx-delete="/api/clients/{{ client.id }}"
+                    hx-confirm="确定删除客户 '{{ client.name }}' 吗？此操作不可恢复。"
+                    hx-target="#client-row-{{ client.id }}"
+                    hx-swap="outerHTML">
+                删除
+            </button>
+        </div>
+    </td>
+</tr>
+
+<script>
+function showCollectFeedback(clientName) {
+    // 创建一个临时的成功提示
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    alert.innerHTML = `
+        <strong>任务已提交！</strong> 为 "${clientName}" 的情报收集任务已启动，请查看后台终端输出。
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+
+    // 5秒后自动移除
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
+}
+</script>
